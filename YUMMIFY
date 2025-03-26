@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YUMMIFY - Book a Table</title>
+    <style>
+        /* General Styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        body {
+            background: url('1.jpg') no-repeat center center/cover;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            font-size: 3rem;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+            transition: transform 0.3s ease-in-out;
+        }
+        h1:hover {
+            transform: scale(1.1);
+        }
+        button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            border: none;
+            background: #fff;
+            color: #ff416c;
+            font-size: 1.2rem;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: 0.3s ease-in-out;
+        }
+        button:hover {
+            background: #ff4b2b;
+            color: white;
+        }
+
+        /* Popup Styling */
+        .popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 25px;
+            width: 400px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .popup h2 {
+            color: #ff416c;
+        }
+        .popup input, select {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .popup button {
+            width: 100%;
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #ff416c;
+        }
+
+        /* Map and Restaurant List */
+        #map {
+            height: 300px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        #restaurantList {
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            margin-top: 10px;
+        }
+        .restaurant-item {
+            padding: 10px;
+            background: #f3f3f3;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .restaurant-item:hover {
+            background: #ff416c;
+            color: white;
+        }
+        .loading {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>YUMMIFY</h1>
+        <button onclick="openBooking()">BOOK A TABLE</button>
+    </div>
+
+    <!-- Booking Popup -->
+    <div id="bookingPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('bookingPopup')">&times;</span>
+        <h2>Book a Table</h2>
+        <input type="text" placeholder="Your Name" id="name">
+        <input type="date" id="date">
+        <input type="tel" placeholder="Phone Number" id="phone">
+        <button onclick="nextStep()">Next</button>
+    </div>
+
+    <!-- Restaurant Selection -->
+    <div id="restaurantPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('restaurantPopup')">&times;</span>
+        <h2>Select a Restaurant</h2>
+        <input type="text" placeholder="Search..." id="search" onkeyup="filterRestaurants()">
+        <div id="map"></div>
+        <div id="restaurantList"></div>
+        <p class="loading">Loading nearby restaurants...</p>
+        <button onclick="chooseRestaurant()">Confirm</button>
+    </div>
+
+    <!-- Table Booking -->
+    <div id="tableBookingPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('tableBookingPopup')">&times;</span>
+        <h2>Table Booking</h2>
+        <label>Time Duration (hours):</label>
+        <input type="number" min="1" max="5" id="hours">
+        <button onclick="finalizeBooking()">Book Table</button>
+    </div>
+
+    <script>
+        let selectedRestaurant = '';
+
+        function openBooking() {
+            document.getElementById("bookingPopup").style.display = "block";
+        }
+
+        function closePopup(id) {
+            document.getElementById(id).style.display = "none";
+        }
+
+        function nextStep() {
+            document.getElementById("bookingPopup").style.display = "none";
+            document.getElementById("restaurantPopup").style.display = "block";
+            loadMap();
+        }
+
+        function loadMap() {
+            document.querySelector(".loading").style.display = "block";
+            navigator.geolocation.getCurrentPosition(position => {
+                let userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                let map = new google.maps.Map(document.getElementById("map"), { center: userLocation, zoom: 13 });
+                let service = new google.maps.places.PlacesService(map);
+
+                service.nearbySearch({ location: userLocation, radius: 5000, type: ['restaurant'] }, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        let list = document.getElementById("restaurantList");
+                        list.innerHTML = '';
+                        document.querySelector(".loading").style.display = "none";
+
+                        results.forEach(place => {
+                            let div = document.createElement("div");
+                            div.classList.add("restaurant-item");
+                            div.innerText = place.name;
+                            div.onclick = () => {
+                                selectedRestaurant = place.name;
+                                document.querySelectorAll(".restaurant-item").forEach(el => el.style.background = "#f3f3f3");
+                                div.style.background = "#ff416c";
+                                div.style.color = "white";
+                            };
+                            list.appendChild(div);
+                        });
+                    }
+                });
+            });
+        }
+
+        function chooseRestaurant() {
+            document.getElementById("restaurantPopup").style.display = "none";
+            document.getElementById("tableBookingPopup").style.display = "block";
+        }
+
+        function finalizeBooking() {
+            alert(`Table booked at ${selectedRestaurant} for ${document.getElementById("hours").value} hours!`);
+            location.reload();
+        }
+    </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YUMMIFY - Book a Table</title>
+    <style>
+        /* General Styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        body {
+            background: url('1.jpg') no-repeat center center/cover;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            font-size: 3rem;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+            transition: transform 0.3s ease-in-out;
+        }
+        h1:hover {
+            transform: scale(1.1);
+        }
+        button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            border: none;
+            background: #fff;
+            color: #ff416c;
+            font-size: 1.2rem;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: 0.3s ease-in-out;
+        }
+        button:hover {
+            background: #ff4b2b;
+            color: white;
+        }
+
+        /* Popup Styling */
+        .popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 25px;
+            width: 400px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .popup h2 {
+            color: #ff416c;
+        }
+        .popup input, select {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .popup button {
+            width: 100%;
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #ff416c;
+        }
+
+        /* Map and Restaurant List */
+        #map {
+            height: 300px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        #restaurantList {
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            margin-top: 10px;
+        }
+        .restaurant-item {
+            padding: 10px;
+            background: #f3f3f3;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .restaurant-item:hover {
+            background: #ff416c;
+            color: white;
+        }
+        .loading {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>YUMMIFY</h1>
+        <button onclick="openBooking()">BOOK A TABLE</button>
+    </div>
+
+    <!-- Booking Popup -->
+    <div id="bookingPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('bookingPopup')">&times;</span>
+        <h2>Book a Table</h2>
+        <input type="text" placeholder="Your Name" id="name">
+        <input type="date" id="date">
+        <input type="tel" placeholder="Phone Number" id="phone">
+        <button onclick="nextStep()">Next</button>
+    </div>
+
+    <!-- Restaurant Selection -->
+    <div id="restaurantPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('restaurantPopup')">&times;</span>
+        <h2>Select a Restaurant</h2>
+        <input type="text" placeholder="Search..." id="search" onkeyup="filterRestaurants()">
+        <div id="map"></div>
+        <div id="restaurantList"></div>
+        <p class="loading">Loading nearby restaurants...</p>
+        <button onclick="chooseRestaurant()">Confirm</button>
+    </div>
+
+    <!-- Table Booking -->
+    <div id="tableBookingPopup" class="popup">
+        <span class="close-btn" onclick="closePopup('tableBookingPopup')">&times;</span>
+        <h2>Table Booking</h2>
+        <label>Time Duration (hours):</label>
+        <input type="number" min="1" max="5" id="hours">
+        <button onclick="finalizeBooking()">Book Table</button>
+    </div>
+
+    <script>
+        let selectedRestaurant = '';
+
+        function openBooking() {
+            document.getElementById("bookingPopup").style.display = "block";
+        }
+
+        function closePopup(id) {
+            document.getElementById(id).style.display = "none";
+        }
+
+        function nextStep() {
+            document.getElementById("bookingPopup").style.display = "none";
+            document.getElementById("restaurantPopup").style.display = "block";
+            loadMap();
+        }
+
+        function loadMap() {
+            document.querySelector(".loading").style.display = "block";
+            navigator.geolocation.getCurrentPosition(position => {
+                let userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                let map = new google.maps.Map(document.getElementById("map"), { center: userLocation, zoom: 13 });
+                let service = new google.maps.places.PlacesService(map);
+
+                service.nearbySearch({ location: userLocation, radius: 5000, type: ['restaurant'] }, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        let list = document.getElementById("restaurantList");
+                        list.innerHTML = '';
+                        document.querySelector(".loading").style.display = "none";
+
+                        results.forEach(place => {
+                            let div = document.createElement("div");
+                            div.classList.add("restaurant-item");
+                            div.innerText = place.name;
+                            div.onclick = () => {
+                                selectedRestaurant = place.name;
+                                document.querySelectorAll(".restaurant-item").forEach(el => el.style.background = "#f3f3f3");
+                                div.style.background = "#ff416c";
+                                div.style.color = "white";
+                            };
+                            list.appendChild(div);
+                        });
+                    }
+                });
+            });
+        }
+
+        function chooseRestaurant() {
+            document.getElementById("restaurantPopup").style.display = "none";
+            document.getElementById("tableBookingPopup").style.display = "block";
+        }
+
+        function finalizeBooking() {
+            alert(`Table booked at ${selectedRestaurant} for ${document.getElementById("hours").value} hours!`);
+            location.reload();
+        }
+    </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+
+</body>
+</html>
